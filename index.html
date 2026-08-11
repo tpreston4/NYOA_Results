@@ -159,7 +159,10 @@
     </div>
     <div class="class-label">
       <b id="labelText">Loading…</b>
-      <span class="status-pill" id="statusPill">—</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="icon-btn" id="addRaceBtn" title="Add a race day" style="width:28px; height:28px; font-size:16px;">+</button>
+        <span class="status-pill" id="statusPill">—</span>
+      </div>
     </div>
   </header>
 
@@ -223,6 +226,9 @@
     <div class="divider"></div>
     <div class="hint">Edited positions are stored only on this device. Refreshing from the web replaces them with the site's current results.</div>
     <button class="ghost small" id="clearDataBtn" style="margin-top:10px;">Clear All Local Data</button>
+    <div class="divider"></div>
+    <div class="hint">App version: <span id="appVersion">2026-08-11.2</span>. If you just updated the files on GitHub and don't see the change, tap below to force-reload the latest version.</div>
+    <button class="ghost small" id="forceUpdateBtn" style="margin-top:10px;">Check for App Update</button>
   </div>
   <div class="sheet-foot">
     <button class="primary" id="settingsClose" style="flex:1;">Done</button>
@@ -369,6 +375,26 @@ function parseStandingsHTML(html, kind){
 function recomputePlaces(rows){
   const order = [...rows].sort((a,b) => b.total - a.total);
   order.forEach((r,i) => r.place = i+1);
+}
+
+function addRaceDate(dateLabel){
+  const data = currentData();
+  if(!data){ showToast("Load standings first"); return; }
+  const label = (dateLabel || "").trim();
+  if(!label) return;
+  if(data.dates.includes(label)){ showToast("That race date already exists"); return; }
+
+  data.dates.push(label);
+  data.rows.forEach(r => {
+    r.columns.push({
+      date: label,
+      finish: state.mode === "class" ? "" : null,
+      points: 0
+    });
+  });
+  saveLocal();
+  render();
+  showToast('Added "' + label + '" — tap any racer to enter their finish');
 }
 
 // ---------- fetching ----------
@@ -662,6 +688,11 @@ function init(){
   };
 
   $("#settingsBtn").onclick = openSettings;
+  $("#addRaceBtn").onclick = () => {
+    const suggestion = new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+    const label = prompt("Race date (e.g. 8/23/2026):", suggestion);
+    if(label !== null) addRaceDate(label);
+  };
   $("#settingsClose").onclick = closeSettings;
   $("#overlaySettings").onclick = closeSettings;
   $("#parsePasteBtn").onclick = parsePastedHTML;
@@ -672,6 +703,20 @@ function init(){
       render();
       showToast("Local data cleared");
     }
+  };
+
+  $("#forceUpdateBtn").onclick = async () => {
+    try{
+      if("serviceWorker" in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if(window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    }catch(e){ console.warn(e); }
+    location.reload(true);
   };
 
   $("#editCancel").onclick = closeEdit;
