@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<title>NYOA Points Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#111214; --panel:#1a1c1f; --panel-2:#212327; --line:#2c2f34;
+    --red:#E4342B; --red-dim:#7a1f1a; --text:#F2F1ED; --text-dim:#9A9DA3;
+    --gold:#E8B23D; --green:#3DBE6C;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,sans-serif; overscroll-behavior:none;}
+  h1,h2,h3,.num,.mono{font-family:'Oswald',system-ui,sans-serif;}
+  #app{display:flex; flex-direction:column; height:100vh; height:100dvh;}
+
+  /* HEADER */
+  header{padding:14px 16px 0; background:var(--bg); position:sticky; top:0; z-index:20;}
+  .brand{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .brand-title{display:flex; align-items:baseline; gap:8px;}
+  .brand-title h1{font-size:20px; margin:0; letter-spacing:.5px; text-transform:uppercase;}
+  .brand-title span{color:var(--red); font-weight:700;}
+  .icon-btn{background:var(--panel); border:1px solid var(--line); color:var(--text);
+    width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; cursor:pointer;}
+  .icon-btn:active{background:var(--panel-2);}
+
+  .tabs{display:flex; background:var(--panel); border-radius:12px; padding:4px; gap:4px; border:1px solid var(--line);}
+  .tab{flex:1; text-align:center; padding:9px 0; border-radius:9px; font-family:'Oswald'; font-weight:600;
+    font-size:13px; letter-spacing:.6px; text-transform:uppercase; color:var(--text-dim); cursor:pointer;}
+  .tab.active{background:var(--red); color:#fff;}
+
+  .subbar{display:flex; align-items:center; gap:8px; margin:12px 0 10px;}
+  .search{flex:1; display:flex; align-items:center; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:0 10px; height:38px;}
+  .search input{flex:1; background:none; border:none; outline:none; color:var(--text); font-size:14px; margin-left:6px;}
+  .search input::placeholder{color:var(--text-dim);}
+  select#sortSel{background:var(--panel); border:1px solid var(--line); color:var(--text);
+    height:38px; border-radius:10px; padding:0 8px; font-size:13px; font-family:'Inter';}
+
+  .class-label{font-size:12px; color:var(--text-dim); padding-bottom:8px; display:flex; justify-content:space-between; align-items:center;}
+  .class-label b{color:var(--text); font-weight:600;}
+  .status-pill{font-size:11px; padding:2px 8px; border-radius:20px; background:var(--panel-2); color:var(--text-dim);}
+  .status-pill.live{color:var(--green);}
+  .status-pill.edited{color:var(--gold);}
+
+  /* LIST */
+  main{flex:1; overflow-y:auto; padding:0 12px 90px;}
+  .row-card{display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); padding:12px; margin-bottom:9px; cursor:pointer;}
+  .row-card:active{background:var(--panel-2);}
+  .place-badge{width:34px; height:34px; border-radius:9px; background:var(--panel-2); display:flex;
+    align-items:center; justify-content:center; font-family:'Oswald'; font-weight:700; font-size:15px; flex-shrink:0;}
+  .place-badge.p1{background:var(--red); color:#fff;}
+  .place-badge.p2{background:#4a3220; color:var(--gold);}
+  .place-badge.p3{background:#332018; color:#cd8a4a;}
+  .row-main{flex:1; min-width:0;}
+  .row-name{font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row-sub{font-size:12px; color:var(--text-dim); margin-top:2px;}
+  .row-points{text-align:right; flex-shrink:0;}
+  .row-points .num{font-size:19px; font-weight:700;}
+  .row-points .lbl{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px;}
+  .row-points.edited .num{color:var(--gold);}
+
+  .empty{padding:60px 20px; text-align:center; color:var(--text-dim);}
+  .empty h3{color:var(--text); margin:0 0 6px;}
+  .empty button{margin-top:16px;}
+
+  button.primary{background:var(--red); color:#fff; border:none; border-radius:10px; padding:11px 18px;
+    font-family:'Oswald'; font-weight:600; font-size:13px; letter-spacing:.5px; text-transform:uppercase; cursor:pointer;}
+  button.ghost{background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:10px;
+    padding:11px 18px; font-family:'Oswald'; font-weight:600; font-size:13px; letter-spacing:.5px; text-transform:uppercase; cursor:pointer;}
+  button.small{padding:7px 12px; font-size:11px;}
+  button:disabled{opacity:.5;}
+
+  /* SHEETS / MODALS */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:40; display:none;}
+  .overlay.show{display:block;}
+  .sheet{position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-radius:18px 18px 0 0;
+    z-index:41; max-height:88vh; display:flex; flex-direction:column; transform:translateY(100%);
+    transition:transform .22s ease; border-top:1px solid var(--line);}
+  .sheet.show{transform:translateY(0);}
+  .sheet-handle{width:38px; height:4px; background:var(--line); border-radius:3px; margin:10px auto 0;}
+  .sheet-head{padding:12px 18px 14px; border-bottom:1px solid var(--line);}
+  .sheet-head h2{margin:0; font-size:19px;}
+  .sheet-head .meta{font-size:12px; color:var(--text-dim); margin-top:3px;}
+  .sheet-body{padding:14px 18px; overflow-y:auto;}
+  .sheet-foot{padding:12px 18px calc(16px + env(safe-area-inset-bottom)); border-top:1px solid var(--line);
+    display:flex; gap:10px;}
+  .sheet-foot button{flex:1;}
+
+  .race-row{display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .race-row:last-child{border-bottom:none;}
+  .race-date{width:78px; flex-shrink:0; font-size:12.5px; color:var(--text-dim); font-family:'Oswald'; font-weight:500;}
+  .race-input{width:64px; flex-shrink:0;}
+  .race-input input{width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:8px 6px; text-align:center; font-size:14px; font-family:'Oswald'; font-weight:600;}
+  .race-arrow{color:var(--text-dim); font-size:13px;}
+  .race-points{flex:1; text-align:right; font-family:'Oswald'; font-weight:700; font-size:15px;}
+  .race-points .was{font-size:11px; color:var(--text-dim); font-weight:400; display:block; font-family:'Inter';}
+
+  .total-line{display:flex; justify-content:space-between; align-items:center; padding-top:14px; margin-top:4px;}
+  .total-line .num{font-size:26px; font-weight:700;}
+  .total-line .lbl{font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.6px;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px;}
+  .field input, .field textarea{width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:9px; padding:10px 11px; font-size:14px; font-family:'Inter';}
+  .field textarea{min-height:110px; font-family:monospace; font-size:11px;}
+  .hint{font-size:12px; color:var(--text-dim); line-height:1.5;}
+  .divider{height:1px; background:var(--line); margin:16px 0;}
+
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--panel-2);
+    border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:10px; font-size:13px;
+    z-index:60; opacity:0; transition:opacity .25s; pointer-events:none;}
+  .toast.show{opacity:1;}
+
+  .spinner{width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--red); border-radius:50%;
+    animation:spin .7s linear infinite; display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="brand">
+      <div class="brand-title"><h1>NYOA <span>POINTS</span></h1></div>
+      <div style="display:flex; gap:8px;">
+        <button class="icon-btn" id="refreshBtn" title="Refresh from web">&#8635;</button>
+        <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-mode="class">Class</div>
+      <div class="tab" data-mode="overall">Overall</div>
+    </div>
+    <div class="subbar">
+      <div class="search">
+        <span>&#128269;</span>
+        <input id="searchInput" placeholder="Search name, number, make…">
+      </div>
+      <select id="sortSel">
+        <option value="place">Sort: Place</option>
+        <option value="name">Sort: Name</option>
+        <option value="nbr">Sort: Number</option>
+        <option value="total">Sort: Points</option>
+      </select>
+    </div>
+    <div class="class-label">
+      <b id="labelText">Loading…</b>
+      <span class="status-pill" id="statusPill">—</span>
+    </div>
+  </header>
+
+  <main id="listWrap">
+    <div class="empty" id="emptyState">
+      <h3>No data yet</h3>
+      <div>Pull in the latest standings to get started.</div>
+      <button class="primary" id="firstLoadBtn">Load Standings</button>
+    </div>
+  </main>
+</div>
+
+<!-- Row edit sheet -->
+<div class="overlay" id="overlayEdit"></div>
+<div class="sheet" id="sheetEdit">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 id="editName">—</h2>
+    <div class="meta" id="editMeta">—</div>
+  </div>
+  <div class="sheet-body">
+    <div class="hint" style="margin-bottom:10px;" id="editHint"></div>
+    <div id="raceList"></div>
+    <div class="total-line">
+      <span class="lbl">Total Points</span>
+      <span class="num" id="editTotal">0</span>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="ghost" id="editCancel">Close</button>
+    <button class="primary" id="editSave">Save Changes</button>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="overlay" id="overlaySettings"></div>
+<div class="sheet" id="sheetSettings">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2>Settings</h2>
+    <div class="meta">Data sources &amp; manual import</div>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Class results URL</label>
+      <input id="classUrlInput" type="text">
+    </div>
+    <div class="field">
+      <label>Overall results URL</label>
+      <input id="overallUrlInput" type="text">
+    </div>
+    <div class="hint">Tap "Load Standings" to fetch live from these pages. Some mobile networks block cross‑site requests to xcracing.com — if a fetch fails, open the URL above in Chrome, use "View source", copy it, and paste below.</div>
+    <div class="divider"></div>
+    <div class="field">
+      <label>Manual HTML import (current tab: <span id="pasteModeLabel">class</span>)</label>
+      <textarea id="pasteInput" placeholder="Paste page source here if live fetch fails…"></textarea>
+    </div>
+    <button class="ghost small" id="parsePasteBtn">Parse Pasted HTML</button>
+    <div class="divider"></div>
+    <div class="hint">Edited positions are stored only on this device. Refreshing from the web replaces them with the site's current results.</div>
+    <button class="ghost small" id="clearDataBtn" style="margin-top:10px;">Clear All Local Data</button>
+  </div>
+  <div class="sheet-foot">
+    <button class="primary" id="settingsClose" style="flex:1;">Done</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const POINTS = {"class":{"1":20,"2":18,"3":16,"4":14,"5":12,"6":10,"7":9,"8":8,"9":7,"10":6,"11":5,"12":4,"13":3,"14":2,"15":1},"overall":{"1":500,"2":495,"3":490,"4":485,"5":480,"6":475,"7":470,"8":465,"9":460,"10":455,"11":450,"12":445,"13":440,"14":435,"15":430,"16":425,"17":420,"18":415,"19":410,"20":405,"21":400,"22":395,"23":390,"24":385,"25":380,"26":379,"27":378,"28":373,"29":377,"30":376,"31":371,"32":375,"33":374,"34":369,"35":373,"36":372,"37":367,"38":371,"39":370,"40":365,"41":369,"42":368,"43":363,"44":367,"45":366,"46":361,"47":365,"48":364,"49":359,"50":363,"51":362,"52":357,"53":361,"54":360,"55":355,"56":359,"57":358,"58":353,"59":357,"60":356,"61":351,"62":355,"63":354,"64":349,"65":353,"66":352,"67":347,"68":351,"69":350,"70":345,"71":349,"72":348,"73":343,"74":347,"75":346,"76":341,"77":345,"78":344,"79":339,"80":343,"81":342,"82":337,"83":341,"84":340,"85":335,"86":339,"87":338,"88":333,"89":337,"90":336,"91":331,"92":335,"93":334,"94":329,"95":333,"96":332,"97":327,"98":331,"99":330,"100":325,"101":329,"102":328,"103":323,"104":327,"105":326,"106":321,"107":325,"108":324,"109":319,"110":323,"111":322,"112":317,"113":321,"114":320,"115":315,"116":319,"117":318,"118":313,"119":317,"120":316,"121":311,"122":315,"123":314,"124":309,"125":313,"126":312,"127":307,"128":311,"129":310,"130":305,"131":309,"132":308,"133":303,"134":307,"135":306,"136":301,"137":305,"138":304,"139":299,"140":303,"141":302,"142":297,"143":301,"144":300,"145":295,"146":299,"147":298,"148":293,"149":297,"150":296}};
+
+const DEFAULT_CLASS_URL = "https://www.xcracing.com/wnyoa/results/seriespoints.asp?f=11&s=14&c=60";
+const DEFAULT_OVERALL_URL = "https://www.xcracing.com/wnyoa/results/overallpoints.asp?f=11&s=14";
+const PROXY = (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u);
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+let state = {
+  mode: "class",
+  search: "",
+  sortKey: "place",
+  classData: null,
+  overallData: null,
+  classUrl: DEFAULT_CLASS_URL,
+  overallUrl: DEFAULT_OVERALL_URL,
+};
+
+// ---------- persistence ----------
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem("nyoa_state_v1");
+    if(raw){
+      const saved = JSON.parse(raw);
+      Object.assign(state, saved);
+    }
+  }catch(e){ console.warn("load failed", e); }
+}
+function saveLocal(){
+  try{
+    localStorage.setItem("nyoa_state_v1", JSON.stringify({
+      classData: state.classData, overallData: state.overallData,
+      classUrl: state.classUrl, overallUrl: state.overallUrl
+    }));
+  }catch(e){ console.warn("save failed", e); }
+}
+
+// ---------- points calc ----------
+function pointsFor(kind, positionStr){
+  const s = (positionStr || "").toString().trim().toUpperCase();
+  if(s === "" || s === "DNF" || s === "DNS" || s === "DQ") return 0;
+  const n = parseInt(s, 10);
+  if(isNaN(n)) return 0;
+  const map = POINTS[kind];
+  return map[n] !== undefined ? map[n] : 0;
+}
+
+// ---------- HTML table parsing ----------
+function expandRow(tr){
+  const out = [];
+  Array.from(tr.cells).forEach(cell => {
+    const span = cell.colSpan || 1;
+    const text = cell.textContent.replace(/\s+/g, " ").trim();
+    for(let i=0;i<span;i++) out.push(text);
+  });
+  return out;
+}
+
+function parseStandingsHTML(html, kind){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const tables = Array.from(doc.querySelectorAll("table"));
+  let target = null, headerRowIdx = -1;
+
+  for(const table of tables){
+    const rows = Array.from(table.rows);
+    const idx = rows.findIndex(r => {
+      const cells = Array.from(r.cells).map(c => c.textContent.trim().toLowerCase());
+      return cells.includes("name") && cells.includes("place");
+    });
+    if(idx > -1){ target = table; headerRowIdx = idx; break; }
+  }
+  if(!target) throw new Error("Couldn't find a standings table in that page.");
+
+  const rows = Array.from(target.rows);
+  const headerCells = expandRow(rows[headerRowIdx]);
+  const bannerCells = headerRowIdx > 0 ? expandRow(rows[headerRowIdx - 1]) : [];
+
+  const placeIdx = headerCells.findIndex(t => /^place$/i.test(t));
+  const makeIdx = headerCells.findIndex(t => /^make$/i.test(t));
+  const nbrIdx = headerCells.findIndex(t => /^nbr$/i.test(t));
+  const nameIdx = headerCells.findIndex(t => /^name$/i.test(t));
+  const totalIdx = headerCells.findIndex(t => /total points/i.test(t));
+  const raceIdxs = headerCells
+    .map((t, i) => ({ t, i }))
+    .filter(o => /^(finish|points)$/i.test(o.t))
+    .map(o => o.i);
+
+  const dates = raceIdxs.map((idx, n) => {
+    const label = (bannerCells[idx] || "").trim();
+    return /\d+\/\d+\/\d{2,4}/.test(label) ? label : ("Race " + (n + 1));
+  });
+
+  const labelCell = (bannerCells.find(t => t.length > 3 && !/\d+\/\d+\/\d{2,4}/.test(t)) || "").trim();
+
+  const outRows = [];
+  for(let i = headerRowIdx + 1; i < rows.length; i++){
+    const cells = expandRow(rows[i]);
+    if(cells.length < headerCells.length - 2) continue;
+    const name = (cells[nameIdx] || "").trim();
+    if(!name) continue;
+
+    const columns = raceIdxs.map((idx, n) => {
+      const raw = (cells[idx] || "").trim();
+      const pts = kind === "class" ? pointsFor("class", raw) : (parseInt(raw,10) || 0);
+      return { date: dates[n], finish: kind === "class" ? raw : null, points: pts };
+    });
+    const total = columns.reduce((s, c) => s + c.points, 0);
+
+    outRows.push({
+      id: (cells[nbrIdx] || "") + "-" + name,
+      make: (cells[makeIdx] || "").trim(),
+      nbr: (cells[nbrIdx] || "").trim(),
+      name,
+      columns,
+      total,
+      place: 0
+    });
+  }
+  recomputePlaces(outRows);
+  return { kind, label: labelCell || (kind === "class" ? "Class Points" : "Overall Points"), dates, rows: outRows, fetchedAt: Date.now(), source: "web" };
+}
+
+function recomputePlaces(rows){
+  const order = [...rows].sort((a,b) => b.total - a.total);
+  order.forEach((r,i) => r.place = i+1);
+}
+
+// ---------- fetching ----------
+async function fetchStandings(kind){
+  const url = kind === "class" ? state.classUrl : state.overallUrl;
+  let html = null, lastErr = null;
+  try{
+    const res = await fetch(url, { mode: "cors" });
+    if(res.ok) html = await res.text();
+  }catch(e){ lastErr = e; }
+
+  if(!html){
+    try{
+      const res = await fetch(PROXY(url));
+      if(res.ok) html = await res.text();
+      else lastErr = new Error("Proxy returned " + res.status);
+    }catch(e){ lastErr = e; }
+  }
+  if(!html) throw lastErr || new Error("Fetch failed");
+  return parseStandingsHTML(html, kind);
+}
+
+async function doLoad(kind, { silent } = {}){
+  if(!silent) setStatus("loading");
+  try{
+    const data = await fetchStandings(kind);
+    if(kind === "class") state.classData = data; else state.overallData = data;
+    saveLocal();
+    render();
+    if(!silent) showToast(kind === "class" ? "Class standings updated" : "Overall standings updated");
+  }catch(e){
+    console.error(e);
+    if(!silent){
+      showToast("Couldn't fetch live data — try Settings → paste HTML");
+      setStatus("error");
+    } else {
+      render();
+    }
+  }
+}
+
+// ---------- rendering ----------
+function currentData(){ return state.mode === "class" ? state.classData : state.overallData; }
+
+function setStatus(kind){
+  const pill = $("#statusPill");
+  if(kind === "loading"){ pill.textContent = "Loading…"; pill.className = "status-pill"; return; }
+  if(kind === "error"){ pill.textContent = "Fetch failed"; pill.className = "status-pill"; return; }
+  const d = currentData();
+  if(!d){ pill.textContent = "No data"; pill.className = "status-pill"; return; }
+  const edited = d.rows.some(r => r._edited);
+  pill.textContent = edited ? "Edited locally" : "Updated " + new Date(d.fetchedAt).toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  pill.className = "status-pill " + (edited ? "edited" : "live");
+}
+
+function render(){
+  const data = currentData();
+  const listWrap = $("#listWrap");
+  $("#labelText").textContent = data ? data.label : (state.mode === "class" ? "Class Points" : "Overall Points");
+  setStatus();
+
+  if(!data){
+    listWrap.innerHTML = `<div class="empty" id="emptyState">
+      <h3>No data yet</h3>
+      <div>Pull in the latest ${state.mode} standings to get started.</div>
+      <button class="primary" id="firstLoadBtn">Load Standings</button>
+    </div>`;
+    $("#firstLoadBtn").onclick = () => doLoad(state.mode);
+    return;
+  }
+
+  let rows = data.rows.filter(r => {
+    if(!state.search) return true;
+    const q = state.search.toLowerCase();
+    return r.name.toLowerCase().includes(q) || r.nbr.toLowerCase().includes(q) || r.make.toLowerCase().includes(q);
+  });
+
+  rows = [...rows].sort((a,b) => {
+    switch(state.sortKey){
+      case "name": return a.name.localeCompare(b.name);
+      case "nbr": return (parseInt(a.nbr)||0) - (parseInt(b.nbr)||0);
+      case "total": return b.total - a.total;
+      default: return a.place - b.place;
+    }
+  });
+
+  if(rows.length === 0){
+    listWrap.innerHTML = `<div class="empty"><h3>No matches</h3><div>Try a different search.</div></div>`;
+    return;
+  }
+
+  listWrap.innerHTML = rows.map(r => {
+    const badgeClass = r.place === 1 ? "p1" : r.place === 2 ? "p2" : r.place === 3 ? "p3" : "";
+    return `<div class="row-card" data-id="${escAttr(r.id)}">
+      <div class="place-badge ${badgeClass}">${r.place}</div>
+      <div class="row-main">
+        <div class="row-name">${esc(r.name)}</div>
+        <div class="row-sub">${esc(r.make)} · #${esc(r.nbr)}</div>
+      </div>
+      <div class="row-points ${r._edited ? "edited" : ""}">
+        <div class="num">${r.total}</div>
+        <div class="lbl">pts</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  $$(".row-card").forEach(card => {
+    card.onclick = () => openEdit(card.getAttribute("data-id"));
+  });
+}
+
+function esc(s){ return (s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+function escAttr(s){ return esc(s); }
+
+// ---------- edit sheet ----------
+let editingRowId = null;
+
+function openEdit(id){
+  const data = currentData();
+  const row = data.rows.find(r => r.id === id);
+  if(!row) return;
+  editingRowId = id;
+
+  $("#editName").textContent = row.name;
+  $("#editMeta").textContent = `${row.make} · #${row.nbr} · Currently P${row.place}`;
+  $("#editHint").textContent = state.mode === "class"
+    ? "Enter the finishing position for a race (or DNF) — points recalculate automatically."
+    : "Enter a finishing position for a race — the app converts it to overall points automatically.";
+
+  $("#raceList").innerHTML = row.columns.map((c, i) => `
+    <div class="race-row">
+      <div class="race-date">${esc(c.date)}</div>
+      <div class="race-input"><input type="text" data-idx="${i}" value="${esc(c.finish != null ? c.finish : "")}" placeholder="pos"></div>
+      <div class="race-arrow">&#8594;</div>
+      <div class="race-points" data-pts-idx="${i}">${c.points} pts</div>
+    </div>
+  `).join("");
+
+  updateEditTotal(row);
+
+  $$("#raceList input").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const idx = parseInt(inp.getAttribute("data-idx"), 10);
+      const val = inp.value;
+      const pts = pointsFor(state.mode === "class" ? "class" : "overall", val);
+      $(`[data-pts-idx="${idx}"]`).textContent = pts + " pts";
+      // live preview total without mutating row yet
+      const preview = row.columns.reduce((s,c,ci) => s + (ci === idx ? pts : c.points), 0);
+      $("#editTotal").textContent = preview;
+    });
+  });
+
+  $("#overlayEdit").classList.add("show");
+  $("#sheetEdit").classList.add("show");
+}
+
+function updateEditTotal(row){
+  $("#editTotal").textContent = row.total;
+}
+
+function closeEdit(){
+  $("#overlayEdit").classList.remove("show");
+  $("#sheetEdit").classList.remove("show");
+  editingRowId = null;
+}
+
+function saveEdit(){
+  const data = currentData();
+  const row = data.rows.find(r => r.id === editingRowId);
+  if(!row) return closeEdit();
+
+  $$("#raceList input").forEach(inp => {
+    const idx = parseInt(inp.getAttribute("data-idx"), 10);
+    const val = inp.value.trim();
+    if(val === "") return;
+    const pts = pointsFor(state.mode === "class" ? "class" : "overall", val);
+    row.columns[idx].finish = state.mode === "class" ? val.toUpperCase() : row.columns[idx].finish;
+    row.columns[idx].points = pts;
+  });
+  row.total = row.columns.reduce((s,c) => s + c.points, 0);
+  row._edited = true;
+  recomputePlaces(data.rows);
+  saveLocal();
+  render();
+  closeEdit();
+  showToast("Points recalculated");
+}
+
+// ---------- settings sheet ----------
+function openSettings(){
+  $("#classUrlInput").value = state.classUrl;
+  $("#overallUrlInput").value = state.overallUrl;
+  $("#pasteModeLabel").textContent = state.mode;
+  $("#overlaySettings").classList.add("show");
+  $("#sheetSettings").classList.add("show");
+}
+function closeSettings(){
+  state.classUrl = $("#classUrlInput").value.trim() || DEFAULT_CLASS_URL;
+  state.overallUrl = $("#overallUrlInput").value.trim() || DEFAULT_OVERALL_URL;
+  saveLocal();
+  $("#overlaySettings").classList.remove("show");
+  $("#sheetSettings").classList.remove("show");
+}
+
+function parsePastedHTML(){
+  const html = $("#pasteInput").value;
+  if(!html.trim()) return showToast("Paste the page source first");
+  try{
+    const data = parseStandingsHTML(html, state.mode);
+    if(state.mode === "class") state.classData = data; else state.overallData = data;
+    saveLocal();
+    render();
+    showToast("Imported from pasted HTML");
+    $("#pasteInput").value = "";
+  }catch(e){
+    console.error(e);
+    showToast("Couldn't parse that HTML");
+  }
+}
+
+// ---------- toast ----------
+let toastTimer = null;
+function showToast(msg){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// ---------- wire up ----------
+function init(){
+  loadLocal();
+
+  $$(".tab").forEach(tab => {
+    tab.onclick = () => {
+      $$(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      state.mode = tab.getAttribute("data-mode");
+      $("#searchInput").value = "";
+      state.search = "";
+      render();
+    };
+  });
+
+  $("#searchInput").addEventListener("input", (e) => { state.search = e.target.value; render(); });
+  $("#sortSel").addEventListener("change", (e) => { state.sortKey = e.target.value; render(); });
+
+  $("#refreshBtn").onclick = () => {
+    if(currentData() && currentData().rows.some(r => r._edited)){
+      if(!confirm("Refreshing will replace your local position edits with live site data. Continue?")) return;
+    }
+    doLoad(state.mode);
+  };
+
+  $("#settingsBtn").onclick = openSettings;
+  $("#settingsClose").onclick = closeSettings;
+  $("#overlaySettings").onclick = closeSettings;
+  $("#parsePasteBtn").onclick = parsePastedHTML;
+  $("#clearDataBtn").onclick = () => {
+    if(confirm("Clear all locally stored standings and edits?")){
+      localStorage.removeItem("nyoa_state_v1");
+      state.classData = null; state.overallData = null;
+      render();
+      showToast("Local data cleared");
+    }
+  };
+
+  $("#editCancel").onclick = closeEdit;
+  $("#overlayEdit").onclick = closeEdit;
+  $("#editSave").onclick = saveEdit;
+
+  render();
+
+  // auto-load on first run if nothing cached
+  if(!state.classData) doLoad("class", { silent: true });
+  if(!state.overallData) doLoad("overall", { silent: true });
+
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
