@@ -1,4 +1,4 @@
-const CACHE = "nyoa-points-v3";
+const CACHE = "nyoa-points-v4";
 const SHELL = ["./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 // Cache each file individually rather than using cache.addAll(), which fails
@@ -45,7 +45,13 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        caches.open(CACHE).then((c) => c.put(e.request, res.clone()));
+        // Clone synchronously, the instant the response arrives — cloning
+        // inside a later .then() (e.g. after caches.open() resolves) is too
+        // late, because by then the original response has already started
+        // being handed to the page and its body stream is locked, which
+        // throws "Response body is already used" on .clone().
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
         return res;
       })
       .catch(() => caches.match(e.request))
