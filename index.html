@@ -227,7 +227,7 @@
     <div class="hint">Edited positions are stored only on this device. Refreshing from the web replaces them with the site's current results.</div>
     <button class="ghost small" id="clearDataBtn" style="margin-top:10px;">Clear All Local Data</button>
     <div class="divider"></div>
-    <div class="hint">App version: <span id="appVersion">2026-08-11.3</span>. If you just updated the files on GitHub and don't see the change, tap below to force-reload the latest version.</div>
+    <div class="hint">App version: <span id="appVersion">2026-08-11.4</span>. If you just updated the files on GitHub and don't see the change, tap below to force-reload the latest version.</div>
     <button class="ghost small" id="forceUpdateBtn" style="margin-top:10px;">Check for App Update</button>
   </div>
   <div class="sheet-foot">
@@ -243,14 +243,16 @@ const POINTS = {"class":{"1":20,"2":18,"3":16,"4":14,"5":12,"6":10,"7":9,"8":8,"
 const DEFAULT_CLASS_URL = "https://www.xcracing.com/wnyoa/results/seriespoints.asp?f=11&s=14&c=60";
 const DEFAULT_OVERALL_URL = "https://www.xcracing.com/wnyoa/results/overallpoints.asp?f=11&s=14";
 
-// Public CORS proxies, tried in order. If all fail (they're free/unreliable
-// services and sometimes get rate-limited or blocked by a network), the
-// person falls back to the manual paste-HTML option in Settings.
+// Public CORS proxies, tried in order. xcracing.com is a legacy ASP site
+// that will never add CORS headers itself, so we skip straight to proxies
+// instead of wasting a request (and a guaranteed console error) on a direct
+// fetch every time. allorigins is listed last since it's been unreliable
+// for URLs with multiple query params on this particular site.
 const PROXIES = [
-  (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
   (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
   (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
   (u) => "https://thingproxy.freeboard.io/fetch/" + u,
+  (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
 ];
 
 const $ = (sel) => document.querySelector(sel);
@@ -413,14 +415,9 @@ async function fetchStandings(kind){
   let html = null;
   const attempts = [];
 
-  // Direct request first (works only if the target ever adds CORS headers).
-  try{
-    const res = await fetchWithTimeout(url, 8000);
-    if(res.ok) html = await res.text();
-    else attempts.push("direct: HTTP " + res.status);
-  }catch(e){ attempts.push("direct: " + (e.name === "AbortError" ? "timed out" : e.message)); }
-
-  // Try each proxy in turn until one works.
+  // Try each proxy in turn until one works. (No direct-fetch attempt here —
+  // xcracing.com doesn't send CORS headers, so a direct request would fail
+  // every single time and only adds console noise and wasted time.)
   for(let i = 0; !html && i < PROXIES.length; i++){
     try{
       const res = await fetchWithTimeout(PROXIES[i](url), 10000);
