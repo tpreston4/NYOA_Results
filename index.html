@@ -211,11 +211,13 @@
       <label>Overall results URL</label>
       <input id="overallUrlInput" type="text">
     </div>
-    <div class="hint">Tap "Load Standings" to fetch live from these pages. Some mobile networks block cross‑site requests to xcracing.com — if a fetch fails, open the URL above in Chrome, use "View source", copy it, and paste below.</div>
+    <div class="hint">Tap "Load Standings" to fetch live from these pages. The free proxy services this app relies on are sometimes blocked or rate-limited on certain networks — if that happens, use manual import below.</div>
+    <div class="hint" id="lastErrorHint" style="display:none; color:var(--gold); margin-top:8px;"></div>
     <div class="divider"></div>
     <div class="field">
       <label>Manual HTML import (current tab: <span id="pasteModeLabel">class</span>)</label>
-      <textarea id="pasteInput" placeholder="Paste page source here if live fetch fails…"></textarea>
+      <div class="hint" style="margin-bottom:8px;">In Chrome: tap the address bar, type <code>view-source:</code> right before the URL above and go to it. Then tap ⋮ → "Select all" → "Copy", and paste the result below.</div>
+      <textarea id="pasteInput" placeholder="Paste page source here…"></textarea>
     </div>
     <button class="ghost small" id="parsePasteBtn">Parse Pasted HTML</button>
     <div class="divider"></div>
@@ -234,7 +236,16 @@ const POINTS = {"class":{"1":20,"2":18,"3":16,"4":14,"5":12,"6":10,"7":9,"8":8,"
 
 const DEFAULT_CLASS_URL = "https://www.xcracing.com/wnyoa/results/seriespoints.asp?f=11&s=14&c=60";
 const DEFAULT_OVERALL_URL = "https://www.xcracing.com/wnyoa/results/overallpoints.asp?f=11&s=14";
-const PROXY = (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u);
+
+// Public CORS proxies, tried in order. If all fail (they're free/unreliable
+// services and sometimes get rate-limited or blocked by a network), the
+// person falls back to the manual paste-HTML option in Settings.
+const PROXIES = [
+  (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+  (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+  (u) => "https://thingproxy.freeboard.io/fetch/" + u,
+];
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -248,6 +259,8 @@ let state = {
   classUrl: DEFAULT_CLASS_URL,
   overallUrl: DEFAULT_OVERALL_URL,
 };
+
+let lastFetchError = { class: null, overall: null };
 
 // ---------- persistence ----------
 function loadLocal(){
@@ -359,22 +372,49 @@ function recomputePlaces(rows){
 }
 
 // ---------- fetching ----------
+async function fetchWithTimeout(url, ms){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try{
+    return await fetch(url, { signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function fetchStandings(kind){
   const url = kind === "class" ? state.classUrl : state.overallUrl;
-  let html = null, lastErr = null;
+  let html = null;
+  const attempts = [];
+
+  // Direct request first (works only if the target ever adds CORS headers).
   try{
-    const res = await fetch(url, { mode: "cors" });
+    const res = await fetchWithTimeout(url, 8000);
     if(res.ok) html = await res.text();
-  }catch(e){ lastErr = e; }
+    else attempts.push("direct: HTTP " + res.status);
+  }catch(e){ attempts.push("direct: " + (e.name === "AbortError" ? "timed out" : e.message)); }
+
+  // Try each proxy in turn until one works.
+  for(let i = 0; !html && i < PROXIES.length; i++){
+    try{
+      const res = await fetchWithTimeout(PROXIES[i](url), 10000);
+      if(res.ok){
+        const text = await res.text();
+        if(text && text.length > 200) html = text;
+        else attempts.push("proxy " + (i+1) + ": empty response");
+      } else {
+        attempts.push("proxy " + (i+1) + ": HTTP " + res.status);
+      }
+    }catch(e){
+      attempts.push("proxy " + (i+1) + ": " + (e.name === "AbortError" ? "timed out" : e.message));
+    }
+  }
 
   if(!html){
-    try{
-      const res = await fetch(PROXY(url));
-      if(res.ok) html = await res.text();
-      else lastErr = new Error("Proxy returned " + res.status);
-    }catch(e){ lastErr = e; }
+    const err = new Error("All fetch attempts failed — " + attempts.join(" | "));
+    err.attempts = attempts;
+    throw err;
   }
-  if(!html) throw lastErr || new Error("Fetch failed");
   return parseStandingsHTML(html, kind);
 }
 
@@ -383,13 +423,15 @@ async function doLoad(kind, { silent } = {}){
   try{
     const data = await fetchStandings(kind);
     if(kind === "class") state.classData = data; else state.overallData = data;
+    lastFetchError[kind] = null;
     saveLocal();
     render();
     if(!silent) showToast(kind === "class" ? "Class standings updated" : "Overall standings updated");
   }catch(e){
     console.error(e);
+    lastFetchError[kind] = e.message || String(e);
     if(!silent){
-      showToast("Couldn't fetch live data — try Settings → paste HTML");
+      showToast("Live fetch blocked on this network — tap Settings to paste HTML instead");
       setStatus("error");
     } else {
       render();
@@ -549,6 +591,14 @@ function openSettings(){
   $("#classUrlInput").value = state.classUrl;
   $("#overallUrlInput").value = state.overallUrl;
   $("#pasteModeLabel").textContent = state.mode;
+  const errHint = $("#lastErrorHint");
+  const err = lastFetchError[state.mode];
+  if(err){
+    errHint.textContent = "Last fetch error (" + state.mode + "): " + err;
+    errHint.style.display = "block";
+  } else {
+    errHint.style.display = "none";
+  }
   $("#overlaySettings").classList.add("show");
   $("#sheetSettings").classList.add("show");
 }
