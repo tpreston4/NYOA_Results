@@ -1,8 +1,23 @@
-const CACHE = "nyoa-points-v2";
+const CACHE = "nyoa-points-v3";
 const SHELL = ["./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
+// Cache each file individually rather than using cache.addAll(), which fails
+// the entire install if even one request errors (e.g. a slow load or a
+// missing file). Precaching is only used as an offline fallback — the actual
+// app always prefers a fresh network fetch (see below) — so it's fine for
+// this to be best-effort instead of all-or-nothing.
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  e.waitUntil(
+    caches.open(CACHE).then((c) =>
+      Promise.all(
+        SHELL.map((url) =>
+          fetch(url, { cache: "reload" })
+            .then((res) => { if (res.ok) return c.put(url, res); })
+            .catch((err) => console.warn("SW precache failed:", url, err))
+        )
+      )
+    )
+  );
   self.skipWaiting();
 });
 
